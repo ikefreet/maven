@@ -1,0 +1,61 @@
+pipeline {
+  agent none
+
+  stages {
+    stage('Checkout') {
+      agent any
+      steps {
+        git branch: 'main', url: 'https://github.com/ikefreet/maven.git'
+      }
+    }
+    stage('Build') {
+      agent {
+        docker { image 'maven:3-openjdk-8' }
+      }
+      steps {
+        sh 'mvn clean package -DskipTests=true'
+      }
+    }
+    stage('Test') {
+      agent {
+        docker { image 'maven:3-openjdk-8' }
+      }
+      steps {
+        sh 'mvn test'
+      }
+    }
+    stage('Build Docker Image') {
+      agent any
+      steps {
+        sh 'docker build -t efreet05/hello:10 .'
+      }
+    }
+    stage('Tag Docker Image') {
+      agent any
+      steps {
+        sh 'docker tag efreet05/hello:10 efreet05/hello:10.1'
+      }
+    }
+    stage('Publish Docker Image') {
+      agent any
+      steps {
+        withDockerRegistry(credentialsId: 'docker-hub-token', url: 'https://index.docker.io/v1/') {
+          sh 'docker push efreet05/hello:10.1'
+        }
+      }
+    }
+    stage('Run Docker Container') {
+      agent {
+        docker { 
+          image 'efreet05/jenkins-ansible'
+          args '-u 0:0 -e DOCKER_HOST=tcp://192.168.56.150:2375'
+        }
+      }
+      steps {
+        ansiblePlaybook(playbook: 'webs-deploy.yaml')
+      }
+    }
+  }
+}
+
+
