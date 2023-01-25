@@ -1,33 +1,25 @@
-pipeline {
-  agent { label "jenkins-node" }
-
-  triggers {
-    pollSCM('* * * * *')
-  }
-
-  stages {
+node {
+  def app
+  def dockerfile
+  def anchorefile
+	
+  try {
     stage('Checkout') {
-      steps {
-        git branch: 'main', 
-        url: 'https://github.com/ikefreet/maven.git'
-      }
+      // Clone the git repository
+      checkout scm
+      def path = sh returnStdout: true, script: "pwd"
+      path = path.trim()
+      dockerfile = path + "/Dockerfile"
+      anchorefile = path + "/anchore_images"
     }
+
     stage('Build') {
-      steps {
-        sh 'mvn clean package -DskipTest=true'
+      // Build the image and push it to a staging repository
+      app = docker.build("test/test", "--network host -f Dockerfile .")
+	  docker.withRegistry('https://192.168.160.244', 'harbor') {
+	    app.push("$BUILD_NUMBER")
+	    app.push("latest")
       }
-    }
-    stage('Test') {
-      steps {
-        sh 'mvn test'
-      }
-    }
-    stage('Deploy') {
-      steps {
-        deploy adapters: [tomcat9(credentialsId: 'tomcat', url: 'http://192.168.56.102:8080/')], contextPath: null, war: 'target/hello-world.war'
-      }
-    }
-  }
+      sh script: "echo Build completed"
+    }		    
 }
-
-
