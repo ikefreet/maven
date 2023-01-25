@@ -1,1 +1,1 @@
-FROM python3.19
+FROM python:alpine3.16
